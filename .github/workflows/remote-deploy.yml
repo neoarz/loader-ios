@@ -1,11 +1,15 @@
-name: Remote ipa update
+name: Remote IPA Update
 
 on:
   repository_dispatch:
     types: [ipa-update]
 
+permissions:
+  contents: write
+
 jobs:
   trigger-deploy:
+    name: Deploy IPA Update
     uses: ./.github/workflows/build.yml
     with:
       ipa_url: ${{ github.event.client_payload.ipa_url }}

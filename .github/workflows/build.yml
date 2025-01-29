@@ -39,11 +39,11 @@ on:
         type: string
 
 env:
-  GH_TOKEN: ${{ github.token }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   build-tweak:
-    runs-on: macos-15
+    runs-on: macos-latest
 
     env:
       DEB_DOWNLOADED: false
@@ -113,7 +113,7 @@ jobs:
 
   build-ipa:
     if: inputs.caller_workflow != 'ci'
-    runs-on: macos-15
+    runs-on: macos-latest
     needs: build-tweak
 
     steps:
@@ -131,7 +131,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: 'stable'
+          go-version: "stable"
 
       - name: Clone patcher
         uses: actions/checkout@v4
@@ -196,7 +196,7 @@ jobs:
 
   release-app:
     if: inputs.caller_workflow != 'ci' && inputs.release == true
-    runs-on: macos-15
+    runs-on: macos-latest
     needs: build-ipa
     permissions:
       contents: write
@@ -214,7 +214,7 @@ jobs:
         run: |
           unzip -q *.ipa
           VERSION=$(plutil -p Payload/Discord.app/Info.plist | grep CFBundleShortVersionString | cut -d '"' -f 4)
-          
+
           if [[ ${{ inputs.is_testflight }} == true ]]; then
             BUILD=$(plutil -p Payload/Discord.app/Info.plist | grep CFBundleVersion | cut -d '"' -f 4)
             VERSION="${VERSION}_${BUILD}"
@@ -222,7 +222,7 @@ jobs:
           else
             echo "IS_PRERELEASE=false" >> $GITHUB_ENV
           fi
-          
+
           echo "DISCORD_VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Create GitHub Release
@@ -236,14 +236,11 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ env.IS_PRERELEASE }}
           fail_on_unmatched_files: true
-          token: ${{ env.GITHUB_TOKEN }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   app-repo:
     if: inputs.caller_workflow != 'ci' && inputs.release == true
     continue-on-error: true
-    runs-on: macos-15
+    runs-on: macos-latest
     needs: release-app
     steps:
       - name: Checkout code
@@ -259,7 +256,7 @@ jobs:
           APP_FILE=$(ls *.ipa)
           unzip -q "$APP_FILE"
           VERSION=$(plutil -p Payload/Discord.app/Info.plist | grep CFBundleShortVersionString | cut -d '"' -f 4)
-          
+
           if [[ ${{ inputs.is_testflight }} == true ]]; then
             BUILD=$(plutil -p Payload/Discord.app/Info.plist | grep CFBundleVersion | cut -d '"' -f 4)
             VERSION="${VERSION}_${BUILD}"
@@ -267,13 +264,13 @@ jobs:
           else
             APP_INDEX=0
           fi
-          
+
           NAME=$(grep '^Name:' control | cut -d ' ' -f 2)
           DATE=$(date -u +"%Y-%m-%d")
           IPA_SIZE=$(stat -f %z "$APP_FILE")
           DOWNLOAD_URL=https://github.com/${{ github.repository }}/releases/download/v$VERSION/$NAME.ipa
           NEW_ENTRY=$(jq -n --arg version "$VERSION" --arg date "$DATE" --arg size "$IPA_SIZE" --arg downloadURL "$DOWNLOAD_URL" '{version: $version, date: $date, size: ($size | tonumber), downloadURL: $downloadURL}')
-          
+
           VERSION_EXISTS=$(jq --arg version "$VERSION" --argjson index "$APP_INDEX" '.apps[$index].versions | map(select(.version == $version)) | length' app-repo.json)
           if [ "$VERSION_EXISTS" -gt 0 ]; then
             jq --argjson newEntry "$NEW_ENTRY" --argjson index "$APP_INDEX" --arg version "$VERSION" '.apps[$index].versions |= map(if .version == $version then $newEntry else . end)' app-repo.json > temp.json
